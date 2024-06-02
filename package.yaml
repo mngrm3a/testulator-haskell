@@ -6,10 +6,6 @@ maintainer:          "9266859+mngrm3a@users.noreply.github.com"
 copyright:           "2024 mngrm3a"
 
 language:            GHC2021
-dependencies:
-- base >= 4.7 && < 5
-- containers
-- mtl
 
 ghc-options:
 - -Wall
@@ -31,8 +27,10 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - base >= 4.7 && < 5
     - mtl
     - text
+    - containers
 
 tests:
   testulator-test:
