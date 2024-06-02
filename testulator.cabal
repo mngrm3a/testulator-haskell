@@ -16,7 +16,8 @@ build-type:         Simple
 executable testulator-exe
     main-is: Main.hs
     other-modules:
-          Evaluator
+          Command
+          Expression
           Parser
           Tokenizer
           Paths_testulator

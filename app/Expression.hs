@@ -1,16 +1,21 @@
-module Evaluator
+module Expression
   ( Expression (..),
     Context,
-    mkContext,
-    constant,
-    updateAnswer,
+    SymbolDescription (..),
     evaluate,
+    mkContext,
+    assignValue,
+    updateAnswer,
+    constant,
     unaryFunction,
     binaryFunction,
+    symbolDescriptions,
+    symbolDescription,
   )
 where
 
 import Data.Char qualified as C
+import Data.List qualified as L
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
 import Data.Maybe (catMaybes)
@@ -46,12 +51,27 @@ mkContext :: [Maybe (Text, Mapping)] -> Context
 mkContext = M.fromList . catMaybes
 
 updateAnswer :: Context -> Double -> Context
-updateAnswer ctx v = M.insert (T.pack "ans") (constantMapping v) ctx
+updateAnswer ctx = assignValue ctx (T.pack "ans")
 
-getNameAndArity :: Context -> [(Text, Int)]
-getNameAndArity = M.foldrWithKey' go []
+assignValue :: Context -> Text -> Double -> Context
+assignValue ctx n v = M.insert n (constantMapping v) ctx
+
+symbolDescription :: Context -> Text -> Maybe SymbolDescription
+symbolDescription ctx n = mkSymbolDescription n <$> M.lookup n ctx
+
+symbolDescriptions :: Context -> [SymbolDescription]
+symbolDescriptions = map snd . L.sortOn fst . M.foldrWithKey go []
   where
-    go n (Mapping a _) xs = (n, a) : xs
+    go n m@(Mapping a _) xs = (a, mkSymbolDescription n m) : xs
+
+data SymbolDescription
+  = ValueDescription Text Double
+  | FunctionDescription Text Int
+  deriving (Eq, Show)
+
+mkSymbolDescription :: Text -> Mapping -> SymbolDescription
+mkSymbolDescription n (Mapping 0 f) = ValueDescription n $ f []
+mkSymbolDescription n (Mapping a _) = FunctionDescription n a
 
 binaryFunction :: Text -> (Double -> Double -> Double) -> Maybe (Text, Mapping)
 binaryFunction n f = mkEntry n <*> pure (binaryMapping f)

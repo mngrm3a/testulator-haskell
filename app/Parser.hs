@@ -2,18 +2,26 @@
 
 module Parser (parse, parse') where
 
-import Control.Applicative (Alternative (many, (<|>)), (<**>))
+import Command (Command (..))
+import Control.Applicative (Alternative (many, (<|>)), optional, (<**>))
 import Control.Monad.State (StateT (StateT, runStateT))
 import Data.Functor (void)
 import Data.Text (Text)
-import Evaluator (Expression (..))
+import Expression (Expression (..))
 import Tokenizer (Token (..))
 
-parse :: [Token] -> Maybe Expression
+parse :: [Token] -> Maybe Command
 parse = fmap fst . parse'
 
-parse' :: [Token] -> Maybe (Expression, [Token])
-parse' = runStateT expression
+parse' :: [Token] -> Maybe (Command, [Token])
+parse' = runStateT command
+
+command :: Parser Command
+command = printContext <|> assignment <|> expression'
+  where
+    printContext = PrintContext <$ token QuestionMark <*> optional identifier
+    assignment = Assignment <$> identifier <*> (token Equals *> expression)
+    expression' = Command.Expression <$> expression
 
 expression :: Parser Expression
 expression = term <**> foldOps (plus <|> minus) term
