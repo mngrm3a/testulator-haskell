@@ -20,9 +20,14 @@ term :: Parser Expression
 term = factor <**> foldOps (star <|> slash) factor
 
 factor :: Parser Expression
-factor = brackets expression <|> literal
+factor = brackets expression <|> constant <|> literal
   where
     brackets p = token BracketOpen *> p <* token BracketClose
+
+constant :: Parser Expression
+constant = satisfy $ \case
+  (Identifier n) -> Just $ Constant n
+  _ -> Nothing
 
 literal :: Parser Expression
 literal = satisfy $ \case

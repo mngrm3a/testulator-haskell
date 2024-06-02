@@ -2,13 +2,14 @@ module Tokenizer (Token (..), tokenize, tokenize') where
 
 import Control.Applicative (Alternative (many, some, (<|>)))
 import Control.Monad.State (StateT (..))
-import Data.Char qualified as C (isDigit, isSpace)
+import Data.Char qualified as C (isAlpha, isDigit, isSpace)
 import Data.Functor (void)
 import Data.Text (Text)
 import Data.Text qualified as T
 
 data Token
   = Number Double
+  | Identifier Text
   | Plus
   | Minus
   | Star
@@ -25,6 +26,7 @@ tokenize' = runStateT (many $ skipSpaces *> token)
   where
     token =
       number
+        <|> identifier
         <|> plus
         <|> minus
         <|> star
@@ -42,6 +44,9 @@ star = Star <$ char '*'
 slash = Slash <$ char '/'
 bracketOpen = BracketOpen <$ char '('
 bracketClose = BracketClose <$ char ')'
+
+identifier :: Tokenizer Token
+identifier = Identifier . T.pack <$> some (satisfy C.isAlpha)
 
 number :: Tokenizer Token
 number = Number . read <$> (realNumber <|> number')
