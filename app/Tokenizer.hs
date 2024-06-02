@@ -14,6 +14,7 @@ data Token
   | Minus
   | Star
   | Slash
+  | Comma
   | BracketOpen
   | BracketClose
   deriving (Eq, Show)
@@ -31,17 +32,19 @@ tokenize' = runStateT (many $ skipSpaces *> token)
         <|> minus
         <|> star
         <|> slash
+        <|> comma
         <|> bracketOpen
         <|> bracketClose
 
 skipSpaces :: Tokenizer ()
 skipSpaces = void $ many $ satisfy C.isSpace
 
-plus, minus, star, slash, bracketOpen, bracketClose :: Tokenizer Token
+plus, minus, star, slash, comma, bracketOpen, bracketClose :: Tokenizer Token
 plus = Plus <$ char '+'
 minus = Minus <$ char '-'
 star = Star <$ char '*'
 slash = Slash <$ char '/'
+comma = Comma <$ char ','
 bracketOpen = BracketOpen <$ char '('
 bracketClose = BracketClose <$ char ')'
 
