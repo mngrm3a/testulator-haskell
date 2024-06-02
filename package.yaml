@@ -1,0 +1,47 @@
+name:                testulator
+version:             0.1.0.0
+license:             MIT
+author:              "mngrm3a"
+maintainer:          "9266859+mngrm3a@users.noreply.github.com"
+copyright:           "2024 mngrm3a"
+
+language:            GHC2021
+dependencies:
+- base >= 4.7 && < 5
+- containers
+- mtl
+
+ghc-options:
+- -Wall
+- -Wcompat
+- -Widentities
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wmissing-export-lists
+- -Wmissing-home-modules
+- -Wpartial-fields
+- -Wredundant-constraints
+
+executables:
+  testulator-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    # dependencies:
+
+tests:
+  testulator-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    build-tools:
+    - hspec-discover
+    dependencies:
+    - testulator-exe
+    - hspec
