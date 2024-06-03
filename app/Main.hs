@@ -13,38 +13,36 @@ import Context
     insertEntry,
     mkVariable,
   )
-import Control.Monad (forM_, (>=>))
-import Data.Functor ((<&>))
+import Control.Monad (forM_)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
 import Expression (evaluate)
 import Parser (parse)
-import System.IO (hFlush, stdout)
+import System.Console.Haskeline (InputT)
+import System.Console.Haskeline qualified as Console
 import Tokenizer (tokenize)
 
 main :: IO ()
-main = mainLoop defaultContext
+main = Console.runInputT Console.defaultSettings $ mainLoop defaultContext
 
-mainLoop :: Context -> IO ()
+mainLoop :: Context -> InputT IO ()
 mainLoop context = do
-  msgAsk
-  command' <- T.getLine <&> (tokenize >=> parse)
-  case command' of
+  input <- Console.getInputLine "?> "
+  case (input >>= tokenize . T.pack) >>= parse of
     Just (PrintContext identifier') ->
       printContext identifier' context >> mainLoop context
     Just (Assignment identifier expression) -> do
       case evaluate context expression of
         Just value -> case mkVariable identifier value >>= flip insertEntry context of
           Just context' -> msgReply identifier value >> mainLoop context'
-          _ -> msgErr ("identifier '" <> identifier <> "' exists") >> mainLoop context
+          _ -> msgErr ("identifier '" <> T.unpack identifier <> "' exists") >> mainLoop context
         _ -> msgErr "invalid expression" >> mainLoop context
     Just (Expression expression) -> case evaluate context expression of
       (Just value) -> msgReply "ans" value >> mainLoop context
       _ -> msgErr "invalid expression" >> mainLoop context
     _ -> msgErr "invalid input" >> mainLoop context
 
-printContext :: Maybe Text -> Context -> IO ()
+printContext :: Maybe Text -> Context -> InputT IO ()
 printContext identifier' context = case identifier' of
   Just identifier -> case getDescriptionFor identifier context of
     Just description -> msgInfo $ prettyDescription description
@@ -53,15 +51,12 @@ printContext identifier' context = case identifier' of
   where
     prettyDescription (ConstantDescription name value) = prettyValue "const " name value
     prettyDescription (VariableDescription name value) = prettyValue "var   " name value
-    prettyDescription (FunctionDescription name arity) = "fun:" <> T.pack (show arity) <> " " <> name
-    prettyValue prefix name value = prefix <> name <> " = " <> T.pack (show value)
+    prettyDescription (FunctionDescription name arity) = "fun:" <> show arity <> " " <> T.unpack name
+    prettyValue prefix name value = prefix <> T.unpack name <> " = " <> show value
 
-msgAsk :: IO ()
-msgAsk = T.putStr "?> " >> hFlush stdout
+msgReply :: Text -> Double -> InputT IO ()
+msgReply name value = Console.outputStrLn $ "=> " <> T.unpack name <> " = " <> show value
 
-msgReply :: Text -> Double -> IO ()
-msgReply name value = T.putStrLn $ "=> " <> name <> " = " <> T.pack (show value)
-
-msgInfo, msgErr :: Text -> IO ()
-msgInfo = T.putStrLn . (<>) ":> "
-msgErr = T.putStrLn . (<>) "!> "
+msgInfo, msgErr :: String -> InputT IO ()
+msgInfo = Console.outputStrLn . (<>) ":> "
+msgErr = Console.outputStrLn . (<>) "!> "
