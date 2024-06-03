@@ -10,6 +10,7 @@ module Context
     mkUnaryFunction,
     mkBinaryFunction,
     insertEntry,
+    insertAnswer,
     lookupValue,
     lookupFunction,
     MappingDescription (..),
@@ -19,6 +20,7 @@ module Context
 where
 
 import Data.Char qualified as C
+import Data.Functor.Identity (Identity (Identity, runIdentity))
 import Data.List qualified as L
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
@@ -48,7 +50,7 @@ data Mapping
   | Function !Int ([Double] -> Double)
 
 mkContext :: [ContextEntry] -> Context
-mkContext = Context . M.fromList . map toTuple
+mkContext = Context . M.fromList . filter ((/=) "ans" . fst) . map toTuple
   where
     toTuple (ContextEntry name mapping) = (name, mapping)
 
@@ -63,16 +65,23 @@ mkEntry' name
     check c = all ($ c) [not . T.null, isNothing . T.find C.isSpace, T.all C.isAlpha]
 
 mkConstant :: Text -> Double -> Maybe ContextEntry
+mkConstant "ans" _ = Nothing
 mkConstant name value = mkEntry' name <*> pure (Constant value)
 
 mkVariable :: Text -> Double -> Maybe ContextEntry
 mkVariable name value = mkEntry' name <*> pure (Variable value)
 
 mkUnaryFunction :: Text -> (Double -> Double) -> Maybe ContextEntry
+mkUnaryFunction "ans" _ = Nothing
 mkUnaryFunction name fun = mkEntry' name <*> pure (Function 1 $ \[x] -> fun x)
 
 mkBinaryFunction :: Text -> (Double -> Double -> Double) -> Maybe ContextEntry
+mkBinaryFunction "ans" _ = Nothing
 mkBinaryFunction name fun = mkEntry' name <*> pure (Function 2 $ \(x : y : _) -> fun x y)
+
+insertAnswer :: Double -> Context -> Context
+insertAnswer value c = runIdentity $ withContext c $ \context ->
+  Identity $ M.insert "ans" (Variable value) context
 
 insertEntry :: ContextEntry -> Context -> Maybe Context
 insertEntry (ContextEntry name mapping@(Variable _)) c = withContext c $ \context ->

@@ -10,6 +10,7 @@ import Context
     defaultContext,
     getAllDescriptions,
     getDescriptionFor,
+    insertAnswer,
     insertEntry,
     mkVariable,
   )
@@ -38,7 +39,7 @@ mainLoop context = do
           _ -> msgErr ("identifier '" <> T.unpack identifier <> "' exists") >> mainLoop context
         _ -> msgErr "invalid expression" >> mainLoop context
     Just (Expression expression) -> case evaluate context expression of
-      (Just value) -> msgReply "ans" value >> mainLoop context
+      (Just value) -> msgReply "ans" value >> mainLoop (insertAnswer value context)
       _ -> msgErr "invalid expression" >> mainLoop context
     _ -> msgErr "invalid input" >> mainLoop context
 
