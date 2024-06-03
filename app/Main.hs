@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Main (main) where
 
 import Command (Command (..))
@@ -19,13 +17,13 @@ import Control.Monad.Reader (MonadReader (..), MonadTrans (..), ReaderT (..))
 import Data.Char qualified as C
 import Data.Functor (void)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.List qualified as L
 import Data.Text (Text)
 import Data.Text qualified as T
 import Expression (Expression, evaluate)
 import Parser (parse)
 import System.Console.Haskeline (CompletionFunc, InputT)
 import System.Console.Haskeline qualified as Console
+import Text.Printf qualified as T (printf)
 import Tokenizer (tokenize)
 
 main :: IO ()
@@ -34,7 +32,7 @@ main = do
   runReaderT (Console.runInputT (mkHaskelineSettings contextRef) mainLoop) contextRef
   where
     mkHaskelineSettings env =
-      Console.setComplete (completeIdentifier env) Console.defaultSettings
+      Console.setComplete (completeIdentifier2 env) Console.defaultSettings
 
 mainLoop :: RIOT ()
 mainLoop = do
@@ -52,14 +50,14 @@ printContext identifier' = do
   context <- lift ask >>= (liftIO . readIORef)
   case identifier' of
     Just identifier -> case getDescriptionFor identifier context of
-      Just description -> msgInfo $ prettyDescription description
+      Just description -> msgInfo $ pp description
       _ -> msgErr "unknown identifier"
-    Nothing -> forM_ (getAllDescriptions context) (msgInfo . prettyDescription)
+    Nothing -> forM_ (getAllDescriptions context) (msgInfo . pp)
   where
-    prettyDescription (ConstantDescription name value) = prettyValue "const " name value
-    prettyDescription (VariableDescription name value) = prettyValue "var   " name value
-    prettyDescription (FunctionDescription name arity) = "fun:" <> show arity <> " " <> T.unpack name
-    prettyValue prefix name value = prefix <> T.unpack name <> " = " <> show value
+    pp description = case description of
+      ConstantDescription name value -> T.printf "const %s=%f" name value
+      VariableDescription name value -> T.printf "var   %s=%f" name value
+      FunctionDescription name arity -> T.printf "fun:%d %s" arity name
 
 assignIdentifier :: Text -> Expression -> RIOT ()
 assignIdentifier identifier expression = do
@@ -70,7 +68,7 @@ assignIdentifier identifier expression = do
         Just context' -> do
           writeContext context'
           msgReply identifier value
-        Nothing -> msgErr $ "identifier '" <> T.unpack identifier <> "' exists"
+        Nothing -> msgErr $ T.printf "identifier '%s' exists" identifier
     Nothing -> msgErr "invalid expression"
 
 evaluateExpression :: Expression -> RIOT (Maybe Double)
@@ -79,16 +77,18 @@ evaluateExpression expression = do
   case evaluate context expression of
     (Just value) -> do
       writeContext $ insertAnswer value context
-      msgReply "ans" value
+      msgReply ans value
       pure $ Just value
     Nothing -> msgErr "invalid expression" >> pure Nothing
+  where
+    ans = T.pack "ans"
 
 msgReply :: (MonadIO m) => Text -> Double -> InputT m ()
-msgReply name value = Console.outputStrLn $ "=> " <> T.unpack name <> " = " <> show value
+msgReply name = Console.outputStrLn . T.printf "=> %s = %f" name
 
 msgInfo, msgErr :: (MonadIO m) => String -> InputT m ()
-msgInfo = Console.outputStrLn . (<>) ":> "
-msgErr = Console.outputStrLn . (<>) "!> "
+msgInfo = Console.outputStrLn . T.printf ":> %s"
+msgErr = Console.outputStrLn . T.printf "!> %s"
 
 type Env = IORef Context
 
@@ -100,13 +100,25 @@ readContext = lift ask >>= (liftIO . readIORef)
 writeContext :: Context -> RIOT ()
 writeContext context = lift ask >>= (liftIO . flip writeIORef context)
 
-completeIdentifier :: (MonadIO m) => IORef Context -> CompletionFunc m
-completeIdentifier contextRef =
+completeIdentifier2 :: (MonadIO m) => IORef Context -> CompletionFunc m
+completeIdentifier2 contextRef =
   Console.completeWord' Nothing C.isSpace $ \input -> do
-    identifiers <- getIdentifiers <$> liftIO (readIORef contextRef)
-    pure $ Console.simpleCompletion <$> filter (L.isPrefixOf input) identifiers
+    descriptions <- getAllDescriptions <$> liftIO (readIORef contextRef)
+    let (beforeBracket, afterBracket) = T.breakOnEnd bracketOpen $ T.pack input
+    pure $ buildCompletion beforeBracket <$> findMatches descriptions afterBracket
   where
-    getIdentifiers = fmap (T.unpack . getIdentifier) . getAllDescriptions
-    getIdentifier (ConstantDescription name _) = name
-    getIdentifier (VariableDescription name _) = name
-    getIdentifier (FunctionDescription name _) = name
+    buildCompletion prefix (name, completer) = completer $ prefix <> name
+    findMatches descriptions input
+      | T.null input = mkCompleter <$> descriptions
+      | otherwise = filter (T.isPrefixOf input . fst) $ mkCompleter <$> descriptions
+    mkCompleter description = case description of
+      ConstantDescription name _ -> (name, \replacement -> mkCompletion replacement name True)
+      VariableDescription name _ -> (name, \replacement -> mkCompletion replacement name True)
+      FunctionDescription name _ -> (name, \replacement -> mkCompletion (replacement <> bracketOpen) name False)
+    mkCompletion replacement display isFinished =
+      Console.Completion
+        { Console.replacement = T.unpack replacement,
+          Console.display = T.unpack display,
+          Console.isFinished = isFinished
+        }
+    bracketOpen = T.pack "("
