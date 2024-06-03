@@ -19,8 +19,9 @@ parse' :: [Token] -> Maybe (Command, [Token])
 parse' = runStateT command
 
 command :: Parser Command
-command = printContext <|> assignIdentifier <|> evaluateExpression
+command = printContextOf <|> printContext <|> assignIdentifier <|> evaluateExpression
   where
+    printContextOf = PrintContext . Just <$> (identifier <* eol)
     printContext = PrintContext <$ token QuestionMark <*> optional identifier
     assignIdentifier = AssignIdentifier <$> identifier <*> (token Equals *> expression)
     evaluateExpression = EvaluateExpression <$> expression
@@ -71,8 +72,13 @@ token :: Token -> Parser Token
 token t = satisfy $ \t' -> if t == t' then Just t' else Nothing
 
 satisfy :: (Token -> Maybe a) -> Parser a
-satisfy p = StateT $ \cases
+satisfy p = StateT $ \case
   (t : ts) -> case p t of
     Just a -> Just (a, ts)
     _ -> Nothing
+  _ -> Nothing
+
+eol :: Parser ()
+eol = StateT $ \case
+  [] -> pure ((), [])
   _ -> Nothing
