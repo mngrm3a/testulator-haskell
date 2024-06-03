@@ -11,7 +11,9 @@ import Expression (Expression (..))
 import Tokenizer (Token (..))
 
 parse :: [Token] -> Maybe Command
-parse = fmap fst . parse'
+parse ts = case parse' ts of
+  Just (c, []) -> Just c
+  _ -> Nothing
 
 parse' :: [Token] -> Maybe (Command, [Token])
 parse' = runStateT command
