@@ -17,6 +17,7 @@ executable testulator-exe
     main-is: Main.hs
     other-modules:
           Command
+          Context
           Expression
           Parser
           Tokenizer
