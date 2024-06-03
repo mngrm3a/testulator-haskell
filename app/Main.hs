@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Main (main) where
 
@@ -17,21 +16,25 @@ import Context
 import Control.Monad (forM_)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Reader (MonadReader (..), MonadTrans (..), ReaderT (..))
+import Data.Char qualified as C
 import Data.Functor (void)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.List qualified as L
 import Data.Text (Text)
 import Data.Text qualified as T
 import Expression (Expression, evaluate)
 import Parser (parse)
-import System.Console.Haskeline (InputT)
+import System.Console.Haskeline (CompletionFunc, InputT)
 import System.Console.Haskeline qualified as Console
-import System.Console.Haskeline.Completion
 import Tokenizer (tokenize)
 
 main :: IO ()
 main = do
   contextRef <- newIORef defaultContext
-  runReaderT (Console.runInputT Console.defaultSettings mainLoop) contextRef
+  runReaderT (Console.runInputT (mkHaskelineSettings contextRef) mainLoop) contextRef
+  where
+    mkHaskelineSettings env =
+      Console.setComplete (completeIdentifier env) Console.defaultSettings
 
 mainLoop :: RIOT ()
 mainLoop = do
@@ -96,3 +99,14 @@ readContext = lift ask >>= (liftIO . readIORef)
 
 writeContext :: Context -> RIOT ()
 writeContext context = lift ask >>= (liftIO . flip writeIORef context)
+
+completeIdentifier :: (MonadIO m) => IORef Context -> CompletionFunc m
+completeIdentifier contextRef =
+  Console.completeWord' Nothing C.isSpace $ \input -> do
+    identifiers <- getIdentifiers <$> liftIO (readIORef contextRef)
+    pure $ Console.simpleCompletion <$> filter (L.isPrefixOf input) identifiers
+  where
+    getIdentifiers = fmap (T.unpack . getIdentifier) . getAllDescriptions
+    getIdentifier (ConstantDescription name _) = name
+    getIdentifier (VariableDescription name _) = name
+    getIdentifier (FunctionDescription name _) = name
