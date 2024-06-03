@@ -20,7 +20,6 @@ module Context
 where
 
 import Data.Char qualified as C
-import Data.Functor.Identity (Identity (Identity, runIdentity))
 import Data.List qualified as L
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
@@ -34,12 +33,13 @@ defaultContext :: Context
 defaultContext =
   mkContext $
     catMaybes
-      [ mkConstant "pi" 3.14,
+      [ mkConstant "pi" pi,
         mkUnaryFunction "sin" sin,
         mkUnaryFunction "cos" cos,
         mkUnaryFunction "tan" tan,
         mkUnaryFunction "sqrt" sqrt,
-        mkUnaryFunction "exp" exp
+        mkUnaryFunction "exp" exp,
+        mkUnaryFunction "log" log
       ]
 
 data ContextEntry = ContextEntry !Text !Mapping
@@ -53,9 +53,6 @@ mkContext :: [ContextEntry] -> Context
 mkContext = Context . M.fromList . filter ((/=) "ans" . fst) . map toTuple
   where
     toTuple (ContextEntry name mapping) = (name, mapping)
-
-mkContext' :: [Maybe ContextEntry] -> Context
-mkContext' = mkContext . catMaybes
 
 mkEntry' :: Text -> Maybe (Mapping -> ContextEntry)
 mkEntry' name
@@ -80,17 +77,17 @@ mkBinaryFunction "ans" _ = Nothing
 mkBinaryFunction name fun = mkEntry' name <*> pure (Function 2 $ \(x : y : _) -> fun x y)
 
 insertAnswer :: Double -> Context -> Context
-insertAnswer value c = runIdentity $ withContext c $ \context ->
-  Identity $ M.insert "ans" (Variable value) context
+insertAnswer value (Context context) =
+  Context $ M.insert "ans" (Variable value) context
 
 insertEntry :: ContextEntry -> Context -> Maybe Context
-insertEntry (ContextEntry name mapping@(Variable _)) c = withContext c $ \context ->
-  case M.insertLookupWithKey (\_ new _ -> new) name mapping context of
+insertEntry (ContextEntry name mapping@(Variable _)) (Context context) =
+  Context <$> case M.insertLookupWithKey (\_ new _ -> new) name mapping context of
     (Just (Variable _), context') -> Just context'
     (Just _, _) -> Nothing
     (Nothing, context') -> Just context'
-insertEntry (ContextEntry name mapping) c = withContext c $ \context ->
-  case M.insertLookupWithKey (\_ new _ -> new) name mapping context of
+insertEntry (ContextEntry name mapping) (Context context) =
+  Context <$> case M.insertLookupWithKey (\_ new _ -> new) name mapping context of
     (Just _, _) -> Nothing
     (Nothing, context') -> Just context'
 
@@ -104,9 +101,6 @@ lookupFunction :: Text -> Int -> Context -> Maybe ([Double] -> Double)
 lookupFunction name arity (Context context) = case M.lookup name context of
   Just (Function arity' function) | arity == arity' -> Just function
   _ -> Nothing
-
-withContext :: (Functor f) => Context -> (Map Text Mapping -> f (Map Text Mapping)) -> f Context
-withContext (Context context) g = Context <$> g context
 
 data MappingDescription
   = VariableDescription Text Double
