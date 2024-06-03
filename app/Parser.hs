@@ -19,11 +19,11 @@ parse' :: [Token] -> Maybe (Command, [Token])
 parse' = runStateT command
 
 command :: Parser Command
-command = printContext <|> assignment <|> expression'
+command = printContext <|> assignIdentifier <|> evaluateExpression
   where
     printContext = PrintContext <$ token QuestionMark <*> optional identifier
-    assignment = Assignment <$> identifier <*> (token Equals *> expression)
-    expression' = Command.Expression <$> expression
+    assignIdentifier = AssignIdentifier <$> identifier <*> (token Equals *> expression)
+    evaluateExpression = EvaluateExpression <$> expression
 
 expression :: Parser Expression
 expression = term <**> foldOps (plus <|> minus) term
